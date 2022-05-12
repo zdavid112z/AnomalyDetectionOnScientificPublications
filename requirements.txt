@@ -1,0 +1,12 @@
+tqdm
+pandas
+numpy
+matplotlib
+scikit-learn
+spacy
+seaborn
+gensim
+unidecode
+pytest
+setuptools
+ipython
