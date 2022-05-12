@@ -42,7 +42,6 @@ class LDAConfig:
         self.fpr_samples_to = 0.4
         self.fpr_samples_count = 161
         self.fpr_samples_count = 161
-        self.num_negative_examples_to_positive_examples = 1
         self.threshold = None
 
     def __repr__(self):
