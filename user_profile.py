@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 from sklearn.metrics import roc_auc_score, roc_curve, fbeta_score
 import seaborn as sns
+from sklearn import metrics
 
 EPS = 0.0001
 
@@ -169,11 +170,9 @@ def plot_fbeta_plot(positive_author_scores: pd.Series, negative_author_scores: p
 
 
 def get_confusion_matrix(positive_author_scores: pd.Series, negative_author_scores: pd.Series, threshold):
-    true_positives = len(positive_author_scores[positive_author_scores > threshold])
-    false_positives = len(positive_author_scores) - true_positives
-    false_negatives = len(negative_author_scores[negative_author_scores > threshold])
-    true_negatives = len(negative_author_scores) - false_negatives
-    return np.array([[true_negatives, false_positives], [false_negatives, true_positives]])
+    y_actual = np.concatenate((np.ones(len(positive_author_scores)), np.zeros(len(negative_author_scores))))
+    y_predicted = np.concatenate((positive_author_scores > threshold, negative_author_scores > threshold))
+    return metrics.confusion_matrix(y_actual, y_predicted)
 
 
 def plot_confusion_matrix(positive_author_scores:pd.Series, negative_author_scores:pd.Series, threshold):
@@ -197,8 +196,8 @@ def plot_confusion_matrix(positive_author_scores:pd.Series, negative_author_scor
     plt.show()
 
 
-def get_precision(cf_matrix):
-    return (cf_matrix[0][0] + cf_matrix[1][1]) / (cf_matrix[0][0] + cf_matrix[0][1] + cf_matrix[1][0] + cf_matrix[1][1])
+def get_precision(tn, fp, fn, tp):
+    return (tp + tn) / (tp + tn + fn + fp)
 
 
 def get_negative_scores(model, publications_cv, users_features, num_negative_examples):
