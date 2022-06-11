@@ -99,7 +99,8 @@ def eval_topics_scores_random(publications_sample: pd.DataFrame, users_features_
     return pd.Series(scores.tolist())
 
 
-def plot_roc_curve(positive_author_scores:pd.Series, negative_author_scores:pd.Series, fpr_samples=np.linspace(0.04, 0.3, 53), plot=True):
+def plot_roc_curve(positive_author_scores:pd.Series, negative_author_scores:pd.Series,
+                   fpr_samples=np.linspace(0.04, 0.3, 53), plot=True, figsize=(16, 16)):
     y_test = np.concatenate((np.ones(len(positive_author_scores)), np.zeros(len(negative_author_scores))))
     model_probs = np.concatenate((positive_author_scores.to_numpy(), negative_author_scores.to_numpy()))
     random_probs = [0 for _ in range(len(y_test))]
@@ -116,7 +117,7 @@ def plot_roc_curve(positive_author_scores:pd.Series, negative_author_scores:pd.S
     # Plot the roc curve for the model and the random model line
     if plot:
         plt.style.use('dark_background')
-        plt.figure(figsize=(16, 16))
+        plt.figure(figsize=figsize)
         plt.plot(random_fpr, random_tpr, linestyle='--', label='Random')
         plt.plot(model_fpr, model_tpr, marker='.', label=f'Model (AUC={format(model_auc, ".2f")})')
         # Create labels for the axis
@@ -137,7 +138,8 @@ def plot_roc_curve(positive_author_scores:pd.Series, negative_author_scores:pd.S
     return model_auc, fpr_to_threshold, thresholds
 
 
-def plot_fbeta_plot(positive_author_scores: pd.Series, negative_author_scores: pd.Series, beta=1, thresholds=None, plot=True):
+def plot_fbeta_plot(positive_author_scores: pd.Series, negative_author_scores: pd.Series, beta=1, thresholds=None,
+                    plot=True, figsize=(16, 16)):
     y_test = np.concatenate((np.ones(len(positive_author_scores)), np.zeros(len(negative_author_scores))))
     model_probs = np.concatenate((positive_author_scores.to_numpy(), negative_author_scores.to_numpy()))
     if thresholds is None:
@@ -160,7 +162,7 @@ def plot_fbeta_plot(positive_author_scores: pd.Series, negative_author_scores: p
             best_fbeta_score = score
             best_threshold = threshold
     if plot:
-        fig = plt.figure(figsize=(16, 16))
+        fig = plt.figure(figsize=figsize)
         ax = fig.add_subplot(111)
         plt.plot(thresholds, fbeta_scores)
         ax.set_title("F1 score by Threshold")
@@ -175,10 +177,10 @@ def get_confusion_matrix(positive_author_scores: pd.Series, negative_author_scor
     return metrics.confusion_matrix(y_actual, y_predicted)
 
 
-def plot_confusion_matrix(positive_author_scores:pd.Series, negative_author_scores:pd.Series, threshold):
+def plot_confusion_matrix(positive_author_scores: pd.Series, negative_author_scores: pd.Series, threshold, figsize=(16, 16)):
     cf_matrix = get_confusion_matrix(positive_author_scores, negative_author_scores, threshold)
 
-    plt.figure(figsize=(16, 16))
+    plt.figure(figsize=figsize)
     group_names = ['True Neg', 'False Pos', 'False Neg', 'True Pos']
     group_counts = ["{0:0.0f}".format(value) for value in
                     cf_matrix.flatten()]
@@ -200,7 +202,7 @@ def get_precision(tn, fp, fn, tp):
     return (tp + tn) / (tp + tn + fn + fp)
 
 
-def get_negative_scores(model, publications_cv, users_features, num_negative_examples):
+def get_negative_scores(publications_cv, users_features, num_negative_examples):
     rng = np.random.default_rng()
     publications_sample = rng.integers(0, len(publications_cv), num_negative_examples)
     users_sample = rng.integers(0, len(users_features), num_negative_examples)
