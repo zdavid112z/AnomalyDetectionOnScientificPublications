@@ -1,6 +1,8 @@
 import numpy as np
 import pandas as pd
 import pickle
+import matplotlib.pyplot as plt
+import wordcloud
 
 
 def load_raw_datasets():
@@ -54,3 +56,30 @@ def normalize_array(v: np.ndarray):
 def publications_for_user(publications: pd.DataFrame, authors: pd.DataFrame, user_id: int):
     publication_ids = authors[authors['user_id'] == user_id]['publication_id']
     return publications.loc[publication_ids]['abstract_text_clean'].tolist()
+
+
+def display_wordcloud(words_weights, figsize=(16, 16)):
+    if type(words_weights) is dict:
+        words_weights = [words_weights]
+    if len(words_weights) == 1:
+        wc = wordcloud.WordCloud(width=800, height=800)
+        wc.generate_from_frequencies(words_weights[0])
+        plt.imshow(wc.to_image(), interpolation='bilinear')
+        plt.axis("off")
+    else:
+        plt.style.use('dark_background')
+        rows = (len(words_weights) + 3) // 4
+        fig, axes = plt.subplots(rows, 4, figsize=figsize)
+        i = 0
+        for words_dict in words_weights:
+            wc = wordcloud.WordCloud(width=400, height=400)
+            wc.generate_from_frequencies(words_dict)
+            ax = axes[i // 4][i % 4]
+            ax.imshow(wc.to_image(), interpolation='bilinear')
+            ax.axis("off")
+            i += 1
+        while i < rows * 4:
+            ax = axes[i // 4][i % 4]
+            ax.axis("off")
+            i += 1
+        fig.show()

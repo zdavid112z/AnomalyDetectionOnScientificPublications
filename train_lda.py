@@ -123,22 +123,7 @@ def visualize_topics(model: LDAModel):
     # Average topic coherence is the sum of topic coherences of all topics, divided by the number of topics.
     avg_topic_coherence = sum([t[1] for t in top_topics]) / model.cfg.num_topics
     print('Average topic coherence: %.4f.' % avg_topic_coherence)
-
-    plt.style.use('dark_background')
-    fig, axes = plt.subplots(3, 4, figsize=(16, 16))
-    i = 0
-    for topic in top_topics:
-        wc = wordcloud.WordCloud(width=400, height=400)
-        wc.generate_from_frequencies({token[1]: token[0] for token in topic[0]})
-        ax = axes[i // 4][i % 4]
-        ax.imshow(wc.to_image(), interpolation='bilinear')
-        ax.axis("off")
-        i += 1
-    while i < 12:
-        ax = axes[i // 4][i % 4]
-        ax.axis("off")
-        i += 1
-    fig.show()
+    common.display_wordcloud([{token[1]: token[0] for token in topic[0]} for topic in top_topics])
 
 
 def train_and_evaluate_lda(publications_train: pd.DataFrame, publications_cv: pd.DataFrame, authors_train: pd.DataFrame,

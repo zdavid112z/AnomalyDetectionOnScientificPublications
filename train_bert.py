@@ -1,29 +1,5 @@
-import math
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import sklearn.model_selection
-import torch
-from spacy_langdetect import LanguageDetector
-from spacy.language import Language
-import spacy
-from tqdm import tqdm
-from tqdm.notebook import tqdm
-import pickle
-import seaborn as sns
-import nltk
-from nltk.tokenize import RegexpTokenizer
-from nltk.stem import WordNetLemmatizer, PorterStemmer
-from nltk.corpus import stopwords
-import re
-from sklearn.model_selection import train_test_split
-from sklearn.model_selection import RepeatedStratifiedKFold
-from sklearn.model_selection import cross_val_score
-from unidecode import unidecode
-import gensim
-import logging
-import gensim.corpora as corpora
-from pprint import pprint
 import common
 import user_profile
 import wordcloud
@@ -43,6 +19,7 @@ class BERTConfig:
         self.fpr_samples_count = 3000
         self.threshold = 0
         self.normalize_features = False
+        self.metric = "dot"
 
     def __repr__(self):
         return str(self.__dict__)
@@ -71,11 +48,22 @@ def series_to_matrix(s):
 
 def eval_bert_embeddings(publications: pd.DataFrame, sentence_model: SentenceTransformer, sentence_model_name: str,
                          batch_size: int, recalculate_embeddings=True, progress=True, normalize_embeddings=False):
-    if 'embeddings' not in publications or recalculate_embeddings:
+    cached_embeddings = True
+    if recalculate_embeddings:
+        cached_embeddings = False
+    elif 'embeddings' not in publications:
+        cached_embeddings = False
+    elif 'embeddings_sentence_model' not in publications:
+        cached_embeddings = False
+    elif any(publications['embeddings_sentence_model'] != sentence_model_name):
+        cached_embeddings = False
+
+    if not cached_embeddings:
         embeddings = sentence_model.encode(publications['abstract_text_clean'].tolist(),
                                            show_progress_bar=progress, batch_size=batch_size,
                                            normalize_embeddings=normalize_embeddings)
         publications['embeddings'] = pd.Series(matrix_to_list(embeddings), index=publications.index)
+        publications['embeddings_sentence_model'] = sentence_model_name
     else:
         embeddings = series_to_matrix(publications['embeddings'])
     return embeddings
@@ -124,7 +112,7 @@ def eval_bert(model: BERTModel, publications: pd.DataFrame, recalculate_embeddin
 
 
 def visualize_author_keywords(model: BERTModel, publications: pd.DataFrame, feature: np.ndarray, top_words=20,
-                              ngram_range=(1, 3), metric='dot'):
+                              ngram_range=(1, 3), metric='dot', figsize=(8, 8)):
     embedding = model.pca.inverse_transform(feature)
     docs = publications['abstract_text_clean'].tolist()
     vectorizer = CountVectorizer(stop_words='english', ngram_range=ngram_range)
@@ -134,19 +122,24 @@ def visualize_author_keywords(model: BERTModel, publications: pd.DataFrame, feat
 
     similarities = []
     for i in range(word_embeddings.shape[0]):
-        similarity = user_profile.eval_score_simple(embedding, word_embeddings[i,:], metric)
+        similarity = user_profile.eval_score_simple(embedding, word_embeddings[i, :], metric)
         similarities.append(similarity)
     df = pd.DataFrame(similarities, index=words, columns=['similarity'])
     df = df.sort_values('similarity', ascending=False)
 
     best_words = df.head(top_words)
+    best_words_weights = {}
+    for word in best_words.index:
+        best_words_weights[word] = best_words.loc[word]['similarity']
+    common.display_wordcloud(best_words_weights, figsize=figsize)
     return best_words
 
 
-def train_and_evaluate_lda(publications_train: pd.DataFrame, publications_cv: pd.DataFrame, authors_train: pd.DataFrame,
-                           authors_cv: pd.DataFrame, authors_negative_cv: pd.DataFrame, users: pd.DataFrame,
-                           conf: BERTConfig, save_model=False, plot=False, random_negative_examples=True,
-                           recalculate_embeddings=False, progress=True, metric="dot"):
+def train_and_evaluate_bert(publications_train: pd.DataFrame, publications_cv: pd.DataFrame,
+                            authors_train: pd.DataFrame, authors_cv: pd.DataFrame, authors_negative_cv: pd.DataFrame,
+                            users: pd.DataFrame, conf: BERTConfig, save_model=False, plot=False,
+                            random_negative_examples=True, recalculate_embeddings=False, progress=True,
+                            figsize=(8, 8)):
 
     model, publications_train = train_bert(publications_train, conf,
                                            recalculate_embeddings=recalculate_embeddings, progress=progress)
@@ -156,9 +149,9 @@ def train_and_evaluate_lda(publications_train: pd.DataFrame, publications_cv: pd
     fpr_samples = np.linspace(conf.fpr_samples_from, conf.fpr_samples_to, conf.fpr_samples_count)
     best_threshold, authors_cv, authors_negative_cv, users_features, performance_report = \
         user_profile.evaluate_and_fine_tune_model(publications_train, publications_cv, authors_train, authors_cv,
-                                                  authors_negative_cv, users, metric=metric,
+                                                  authors_negative_cv, users, metric=conf.metric,
                                                   random_negative_examples=random_negative_examples,
-                                                  fpr_samples=fpr_samples, plot=plot)
+                                                  fpr_samples=fpr_samples, plot=plot, figsize=figsize)
 
     model.cfg.threshold = best_threshold
     if save_model:

@@ -247,7 +247,7 @@ def evaluate_and_fine_tune_model(publications_train: pd.DataFrame, publications_
                                  authors_train: pd.DataFrame, authors_cv: pd.DataFrame,
                                  authors_negative_cv: pd.DataFrame, users: pd.DataFrame,
                                  metric: str, random_negative_examples: bool, fpr_samples: np.ndarray,
-                                 plot: bool):
+                                 plot: bool, figsize=(8, 8)):
     users_features = add_publication_features_to_users(publications_train, users, authors_train)
     users_features = build_user_profiles_simple(users_features)
     users_features = users_features.dropna(subset='profile')
@@ -262,9 +262,12 @@ def evaluate_and_fine_tune_model(publications_train: pd.DataFrame, publications_
     else:
         negative_scores = authors_negative_cv['score']
 
-    auc, fpr_to_threshold, _ = plot_roc_curve(positive_scores, negative_scores, plot=plot, fpr_samples=fpr_samples)
-    f1_score, best_threshold = plot_fbeta_plot(positive_scores, negative_scores, plot=plot,
+    auc, fpr_to_threshold, _ = plot_roc_curve(positive_scores, negative_scores, plot=plot, fpr_samples=fpr_samples,
+                                              figsize=figsize)
+    f1_score, best_threshold = plot_fbeta_plot(positive_scores, negative_scores, plot=plot, figsize=figsize,
                                                thresholds=fpr_to_threshold['threshold'].tolist())
+    if plot:
+        plot_confusion_matrix(positive_scores, negative_scores, best_threshold, figsize=figsize)
     tn, fp, fn, tp = get_confusion_matrix(positive_scores, negative_scores, best_threshold).ravel()
     precision = get_precision(tn, fp, fn, tp)
 
