@@ -5,6 +5,11 @@ from tqdm import tqdm
 from sklearn.metrics import roc_auc_score, roc_curve, fbeta_score
 import seaborn as sns
 from sklearn import metrics
+from numpy import dot
+from numpy.linalg import norm
+from scipy.spatial.distance import cosine
+
+import common
 
 EPS = 0.0001
 
@@ -61,7 +66,36 @@ def log_norm(x, mean, std):
     return -np.power((x - mean) / std, 2) / 2 - np.log(std * np.sqrt(2 * np.pi))
 
 
-def eval_topics_scores(publications: pd.DataFrame, users_features: pd.DataFrame, authors: pd.DataFrame, progress=False):
+def cos_similarity(a, b):
+    return np.dot(a, b) / (np.norm(a) * np.norm(b))
+
+
+# Bigger is better
+def eval_score_simple(a, b, metric):
+    if metric == "cos":
+        return 1-cosine(a, b)
+    elif metric == "dot":
+        return np.dot(a, b)
+    elif metric == "norm":
+        return -np.linalg.norm(a - b)
+    raise Exception("metric must be 'cos', 'dot' or 'norm'")
+
+
+# Bigger is better
+def eval_score(feature, mean, std, metric):
+    if metric == "cos":
+        return 1-cosine(feature, mean)
+    elif metric == "cos_weighted":
+        return 1-cosine(feature, mean, std)
+    elif metric == "dot":
+        return np.dot(feature, mean)
+    elif metric == "norm":
+        return log_norm(feature, mean, std)
+    raise Exception("metric must be 'cos', 'dot', 'cos_weighted' or 'norm'")
+
+
+def eval_topics_scores(publications: pd.DataFrame, users_features: pd.DataFrame, authors: pd.DataFrame, progress=False,
+                       metric="norm"):
     def eval_author(author):
         try:
             pub_id = int(author['publication_id'])
@@ -73,7 +107,7 @@ def eval_topics_scores(publications: pd.DataFrame, users_features: pd.DataFrame,
             std = user['features_std']
         except Exception as e:
             return None
-        return log_norm(feature, mean, std)
+        return eval_score(feature, mean, std, metric)
 
     authors = authors.copy()
     if progress:
@@ -85,7 +119,7 @@ def eval_topics_scores(publications: pd.DataFrame, users_features: pd.DataFrame,
     return authors
 
 
-def eval_topics_scores_random(publications_sample: pd.DataFrame, users_features_sample: pd.DataFrame):
+def eval_topics_scores_random(publications_sample: pd.DataFrame, users_features_sample: pd.DataFrame, metric="norm"):
     n = len(publications_sample)
     scores = np.zeros(n)
     for i in range(n):
@@ -94,7 +128,7 @@ def eval_topics_scores_random(publications_sample: pd.DataFrame, users_features_
         feature = pub['feature']
         mean = user['features_mean']
         std = user['features_std']
-        s = log_norm(feature, mean, std)
+        s = eval_score(feature, mean, std, metric)
         scores[i] = np.sum(s)
     return pd.Series(scores.tolist())
 
@@ -207,3 +241,39 @@ def get_negative_scores(publications_cv, users_features, num_negative_examples):
     publications_sample = rng.integers(0, len(publications_cv), num_negative_examples)
     users_sample = rng.integers(0, len(users_features), num_negative_examples)
     return eval_topics_scores_random(publications_cv.iloc[publications_sample], users_features.iloc[users_sample])
+
+
+def evaluate_and_fine_tune_model(publications_train: pd.DataFrame, publications_cv: pd.DataFrame,
+                                 authors_train: pd.DataFrame, authors_cv: pd.DataFrame,
+                                 authors_negative_cv: pd.DataFrame, users: pd.DataFrame,
+                                 metric: str, random_negative_examples: bool, fpr_samples: np.ndarray,
+                                 plot: bool):
+    users_features = add_publication_features_to_users(publications_train, users, authors_train)
+    users_features = build_user_profiles_simple(users_features)
+    users_features = users_features.dropna(subset='profile')
+    users_features = fill_zero_std_with(users_features, mean_nonzero_std(users_features))
+
+    authors_cv = eval_topics_scores(publications_cv, users_features, authors_cv, metric=metric)
+    positive_scores = authors_cv['score']
+
+    authors_negative_cv = eval_topics_scores(publications_cv, users_features, authors_negative_cv)
+    if random_negative_examples:
+        negative_scores = get_negative_scores(publications_cv, users_features, len(authors_cv))
+    else:
+        negative_scores = authors_negative_cv['score']
+
+    auc, fpr_to_threshold, _ = plot_roc_curve(positive_scores, negative_scores, plot=plot, fpr_samples=fpr_samples)
+    f1_score, best_threshold = plot_fbeta_plot(positive_scores, negative_scores, plot=plot,
+                                               thresholds=fpr_to_threshold['threshold'].tolist())
+    tn, fp, fn, tp = get_confusion_matrix(positive_scores, negative_scores, best_threshold).ravel()
+    precision = get_precision(tn, fp, fn, tp)
+
+    return best_threshold, authors_cv, authors_negative_cv, users_features, {
+        "auc": auc,
+        "f1_score": f1_score,
+        "precision": precision,
+        "tn": tn,
+        "fp": fp,
+        "fn": fn,
+        "tp": tp,
+    }

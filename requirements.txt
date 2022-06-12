@@ -10,3 +10,6 @@ unidecode
 pytest
 setuptools
 ipython
+wordcloud
+bertopic
+scipy

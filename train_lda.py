@@ -144,40 +144,22 @@ def visualize_topics(model: LDAModel):
 def train_and_evaluate_lda(publications_train: pd.DataFrame, publications_cv: pd.DataFrame, authors_train: pd.DataFrame,
                            authors_cv: pd.DataFrame, authors_negative_cv: pd.DataFrame, users: pd.DataFrame,
                            conf: LDAConfig, debug_logging=False, save_model=False, plot=False,
-                           random_negative_examples=True):
+                           random_negative_examples=True, metric='norm'):
 
     model = train_lda(publications_train, conf, debug_logging=debug_logging)
     publications_train = eval_lda(model, publications_train)
-
-    users_features = user_profile.add_publication_features_to_users(publications_train, users, authors_train)
-    users_features = user_profile.build_user_profiles_simple(users_features)
-    users_features = users_features.dropna(subset='profile')
-    users_features = user_profile.fill_zero_std_with(users_features, user_profile.mean_nonzero_std(users_features))
-
     publications_cv = eval_lda(model, publications_cv)
-    authors_cv = user_profile.eval_topics_scores(publications_cv, users_features, authors_cv)
-    positive_scores = authors_cv['score']
-
-    if random_negative_examples:
-        negative_scores = user_profile.get_negative_scores(model, publications_cv, users_features, len(authors_cv))
-    else:
-        authors_negative_cv = user_profile.eval_topics_scores(publications_cv, users_features, authors_negative_cv)
-        negative_scores = authors_negative_cv['score']
 
     fpr_samples = np.linspace(conf.fpr_samples_from, conf.fpr_samples_to, conf.fpr_samples_count)
-    auc, fpr_to_threshold, _ = user_profile.plot_roc_curve(positive_scores, negative_scores,
-                                                           plot=plot, fpr_samples=fpr_samples)
-    f1_score, best_threshold = user_profile.plot_fbeta_plot(positive_scores, negative_scores, plot=plot,
-                                                            thresholds=fpr_to_threshold['threshold'].tolist())
-    cf_matrix = user_profile.get_confusion_matrix(positive_scores, negative_scores, best_threshold)
-    precision = user_profile.get_precision(cf_matrix)
+    best_threshold, authors_cv, authors_negative_cv, users_features, performance_report = \
+        user_profile.evaluate_and_fine_tune_model(publications_train, publications_cv, authors_train, authors_cv,
+                                                  authors_negative_cv, users, metric=metric,
+                                                  random_negative_examples=random_negative_examples,
+                                                  fpr_samples=fpr_samples, plot=plot)
+
     model.cfg.threshold = best_threshold
     if save_model:
         save_lda_model(model)
 
-    return model, publications_train, publications_cv, authors_cv, authors_negative_cv, users_features, {
-        "auc": auc,
-        "f1_score": f1_score,
-        "precision": precision,
-        "cf_matrix": cf_matrix
-    } | conf.__dict__
+    return model, publications_train, publications_cv, authors_cv, authors_negative_cv, users_features,\
+        performance_report | conf.__dict__

@@ -1,6 +1,6 @@
+import numpy as np
 import pandas as pd
 import pickle
-import os
 
 
 def load_raw_datasets():
@@ -45,3 +45,12 @@ def load_pickle(name: str):
     obj = pickle.load(file_to_read)
     file_to_read.close()
     return obj
+
+
+def normalize_array(v: np.ndarray):
+    return v / np.linalg.norm(v)
+
+
+def publications_for_user(publications: pd.DataFrame, authors: pd.DataFrame, user_id: int):
+    publication_ids = authors[authors['user_id'] == user_id]['publication_id']
+    return publications.loc[publication_ids]['abstract_text_clean'].tolist()
