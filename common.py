@@ -55,7 +55,7 @@ def normalize_array(v: np.ndarray):
 
 def publications_for_user(publications: pd.DataFrame, authors: pd.DataFrame, user_id: int):
     publication_ids = authors[authors['user_id'] == user_id]['publication_id']
-    return publications.loc[publication_ids]['abstract_text_clean'].tolist()
+    return publications.loc[publication_ids]
 
 
 def display_wordcloud(words_weights, figsize=(16, 16)):

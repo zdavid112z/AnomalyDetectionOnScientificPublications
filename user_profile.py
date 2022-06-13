@@ -52,7 +52,7 @@ def median_nonzero_std(users_features: pd.DataFrame):
 def mean_nonzero_std(users_features: pd.DataFrame):
     stds = []
     users_features['features_std'].apply(lambda v: [stds.append(x) for x in v.tolist() if x >= EPS])
-    return np.mean(np.array(stds))
+    return float(np.mean(np.array(stds)))
 
 
 def fill_zero_std_with(users_features: pd.DataFrame, default_std: float):

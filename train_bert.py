@@ -60,9 +60,11 @@ def eval_bert_embeddings(publications: pd.DataFrame, sentence_model: SentenceTra
 
     if not cached_embeddings:
         embeddings = sentence_model.encode(publications['abstract_text_clean'].tolist(),
-                                           show_progress_bar=progress, batch_size=batch_size,
-                                           normalize_embeddings=normalize_embeddings)
-        publications['embeddings'] = pd.Series(matrix_to_list(embeddings), index=publications.index)
+                                           show_progress_bar=progress, batch_size=batch_size)
+        embeddings_list = matrix_to_list(embeddings)
+        if normalize_embeddings:
+            embeddings_list = [common.normalize_array(v) for v in embeddings_list]
+        publications['embeddings'] = pd.Series(embeddings_list, index=publications.index)
         publications['embeddings_sentence_model'] = sentence_model_name
     else:
         embeddings = series_to_matrix(publications['embeddings'])
