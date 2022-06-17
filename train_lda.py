@@ -43,6 +43,7 @@ class LDAConfig:
         self.fpr_samples_count = 161
         self.fpr_samples_count = 161
         self.threshold = None
+        self.metric = "dot"
 
     def __repr__(self):
         return str(self.__dict__)
@@ -129,7 +130,7 @@ def visualize_topics(model: LDAModel):
 def train_and_evaluate_lda(publications_train: pd.DataFrame, publications_cv: pd.DataFrame, authors_train: pd.DataFrame,
                            authors_cv: pd.DataFrame, authors_negative_cv: pd.DataFrame, users: pd.DataFrame,
                            conf: LDAConfig, debug_logging=False, save_model=False, plot=False,
-                           random_negative_examples=True, metric='norm'):
+                           random_negative_examples=True):
 
     model = train_lda(publications_train, conf, debug_logging=debug_logging)
     publications_train = eval_lda(model, publications_train)
@@ -138,7 +139,7 @@ def train_and_evaluate_lda(publications_train: pd.DataFrame, publications_cv: pd
     fpr_samples = np.linspace(conf.fpr_samples_from, conf.fpr_samples_to, conf.fpr_samples_count)
     best_threshold, authors_cv, authors_negative_cv, users_features, performance_report = \
         user_profile.evaluate_and_fine_tune_model(publications_train, publications_cv, authors_train, authors_cv,
-                                                  authors_negative_cv, users, metric=metric,
+                                                  authors_negative_cv, users, metric=conf.metric,
                                                   random_negative_examples=random_negative_examples,
                                                   fpr_samples=fpr_samples, plot=plot)
 

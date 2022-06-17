@@ -7,6 +7,7 @@ from sentence_transformers import SentenceTransformer
 from sklearn.decomposition import PCA
 from sklearn.feature_extraction.text import CountVectorizer
 
+sentence_models = {}
 
 class BERTConfig:
     def __init__(self):
@@ -74,7 +75,12 @@ def eval_bert_embeddings(publications: pd.DataFrame, sentence_model: SentenceTra
 def train_bert(publications_train: pd.DataFrame, conf: BERTConfig, recalculate_embeddings=True, progress=True):
     publications_train = publications_train.copy()
 
-    sentence_model = SentenceTransformer(conf.embedding_model, device=conf.device)
+    if conf.embedding_model in sentence_models:
+        sentence_model = sentence_models[conf.embedding_model]
+    else:
+        sentence_model = SentenceTransformer(conf.embedding_model, device=conf.device)
+        sentence_models[conf.embedding_model] = sentence_model
+
     embeddings = eval_bert_embeddings(publications_train, sentence_model, conf.embedding_model,
                                       recalculate_embeddings=recalculate_embeddings, progress=progress,
                                       batch_size=conf.batch_size,
@@ -141,7 +147,7 @@ def train_and_evaluate_bert(publications_train: pd.DataFrame, publications_cv: p
                             authors_train: pd.DataFrame, authors_cv: pd.DataFrame, authors_negative_cv: pd.DataFrame,
                             users: pd.DataFrame, conf: BERTConfig, save_model=False, plot=False,
                             random_negative_examples=True, recalculate_embeddings=False, progress=True,
-                            figsize=(8, 8)):
+                            figsize=(8, 8), threshold_overwrite=None):
 
     model, publications_train = train_bert(publications_train, conf,
                                            recalculate_embeddings=recalculate_embeddings, progress=progress)
@@ -153,7 +159,8 @@ def train_and_evaluate_bert(publications_train: pd.DataFrame, publications_cv: p
         user_profile.evaluate_and_fine_tune_model(publications_train, publications_cv, authors_train, authors_cv,
                                                   authors_negative_cv, users, metric=conf.metric,
                                                   random_negative_examples=random_negative_examples,
-                                                  fpr_samples=fpr_samples, plot=plot, figsize=figsize)
+                                                  fpr_samples=fpr_samples, plot=plot, figsize=figsize,
+                                                  threshold_overwrite=threshold_overwrite)
 
     model.cfg.threshold = best_threshold
     if save_model:

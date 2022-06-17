@@ -73,7 +73,7 @@ def cos_similarity(a, b):
 # Bigger is better
 def eval_score_simple(a, b, metric):
     if metric == "cos":
-        return 1-cosine(a, b)
+        return (np.dot(a, b) / np.linalg.norm(a)) / np.linalg.norm(b)
     elif metric == "dot":
         return np.dot(a, b)
     elif metric == "norm":
@@ -84,18 +84,16 @@ def eval_score_simple(a, b, metric):
 # Bigger is better
 def eval_score(feature, mean, std, metric):
     if metric == "cos":
-        return 1-cosine(feature, mean)
-    elif metric == "cos_weighted":
-        return 1-cosine(feature, mean, std)
+        return (np.dot(feature, mean) / np.linalg.norm(feature)) / np.linalg.norm(mean)
     elif metric == "dot":
         return np.dot(feature, mean)
     elif metric == "norm":
         return log_norm(feature, mean, std)
-    raise Exception("metric must be 'cos', 'dot', 'cos_weighted' or 'norm'")
+    raise Exception("metric must be 'cos', 'dot' or 'norm'")
 
 
-def eval_topics_scores(publications: pd.DataFrame, users_features: pd.DataFrame, authors: pd.DataFrame, progress=False,
-                       metric="norm"):
+def eval_topics_scores(publications: pd.DataFrame, users_features: pd.DataFrame, authors: pd.DataFrame, metric: str,
+                       progress=False):
     def eval_author(author):
         try:
             pub_id = int(author['publication_id'])
@@ -119,7 +117,7 @@ def eval_topics_scores(publications: pd.DataFrame, users_features: pd.DataFrame,
     return authors
 
 
-def eval_topics_scores_random(publications_sample: pd.DataFrame, users_features_sample: pd.DataFrame, metric="norm"):
+def eval_topics_scores_random(publications_sample: pd.DataFrame, users_features_sample: pd.DataFrame, metric):
     n = len(publications_sample)
     scores = np.zeros(n)
     for i in range(n):
@@ -236,18 +234,19 @@ def get_precision(tn, fp, fn, tp):
     return (tp + tn) / (tp + tn + fn + fp)
 
 
-def get_negative_scores(publications_cv, users_features, num_negative_examples):
+def get_negative_scores(publications_cv, users_features, num_negative_examples, metric):
     rng = np.random.default_rng()
     publications_sample = rng.integers(0, len(publications_cv), num_negative_examples)
     users_sample = rng.integers(0, len(users_features), num_negative_examples)
-    return eval_topics_scores_random(publications_cv.iloc[publications_sample], users_features.iloc[users_sample])
+    return eval_topics_scores_random(publications_cv.iloc[publications_sample], users_features.iloc[users_sample],
+                                     metric=metric)
 
 
 def evaluate_and_fine_tune_model(publications_train: pd.DataFrame, publications_cv: pd.DataFrame,
                                  authors_train: pd.DataFrame, authors_cv: pd.DataFrame,
                                  authors_negative_cv: pd.DataFrame, users: pd.DataFrame,
                                  metric: str, random_negative_examples: bool, fpr_samples: np.ndarray,
-                                 plot: bool, figsize=(8, 8)):
+                                 plot: bool, figsize=(8, 8), threshold_overwrite=None):
     users_features = add_publication_features_to_users(publications_train, users, authors_train)
     users_features = build_user_profiles_simple(users_features)
     users_features = users_features.dropna(subset='profile')
@@ -256,9 +255,9 @@ def evaluate_and_fine_tune_model(publications_train: pd.DataFrame, publications_
     authors_cv = eval_topics_scores(publications_cv, users_features, authors_cv, metric=metric)
     positive_scores = authors_cv['score']
 
-    authors_negative_cv = eval_topics_scores(publications_cv, users_features, authors_negative_cv)
+    authors_negative_cv = eval_topics_scores(publications_cv, users_features, authors_negative_cv, metric=metric)
     if random_negative_examples:
-        negative_scores = get_negative_scores(publications_cv, users_features, len(authors_cv))
+        negative_scores = get_negative_scores(publications_cv, users_features, len(authors_cv), metric=metric)
     else:
         negative_scores = authors_negative_cv['score']
 
@@ -266,6 +265,8 @@ def evaluate_and_fine_tune_model(publications_train: pd.DataFrame, publications_
                                               figsize=figsize)
     f1_score, best_threshold = plot_fbeta_plot(positive_scores, negative_scores, plot=plot, figsize=figsize,
                                                thresholds=fpr_to_threshold['threshold'].tolist())
+    if threshold_overwrite is not None:
+        best_threshold = threshold_overwrite
     if plot:
         plot_confusion_matrix(positive_scores, negative_scores, best_threshold, figsize=figsize)
     tn, fp, fn, tp = get_confusion_matrix(positive_scores, negative_scores, best_threshold).ravel()
