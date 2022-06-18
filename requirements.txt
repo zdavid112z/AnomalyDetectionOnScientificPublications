@@ -13,3 +13,4 @@ ipython
 wordcloud
 bertopic
 scipy
+umap-learn

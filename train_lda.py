@@ -41,8 +41,8 @@ class LDAConfig:
         self.fpr_samples_from = 0
         self.fpr_samples_to = 0.4
         self.fpr_samples_count = 161
-        self.fpr_samples_count = 161
         self.threshold = None
+        self.threshold_overwrite = None
         self.metric = "dot"
 
     def __repr__(self):
@@ -119,12 +119,12 @@ def eval_lda(model: LDAModel, publications: pd.DataFrame, progress=False):
     return publications
 
 
-def visualize_topics(model: LDAModel):
+def visualize_topics(model: LDAModel, figsize=(8, 8)):
     top_topics = model.model.top_topics(model.corpus)  # , num_words=20)
     # Average topic coherence is the sum of topic coherences of all topics, divided by the number of topics.
     avg_topic_coherence = sum([t[1] for t in top_topics]) / model.cfg.num_topics
     print('Average topic coherence: %.4f.' % avg_topic_coherence)
-    common.display_wordcloud([{token[1]: token[0] for token in topic[0]} for topic in top_topics])
+    common.display_wordcloud([{token[1]: token[0] for token in topic[0]} for topic in top_topics], figsize=figsize)
 
 
 def train_and_evaluate_lda(publications_train: pd.DataFrame, publications_cv: pd.DataFrame, authors_train: pd.DataFrame,
@@ -141,7 +141,8 @@ def train_and_evaluate_lda(publications_train: pd.DataFrame, publications_cv: pd
         user_profile.evaluate_and_fine_tune_model(publications_train, publications_cv, authors_train, authors_cv,
                                                   authors_negative_cv, users, metric=conf.metric,
                                                   random_negative_examples=random_negative_examples,
-                                                  fpr_samples=fpr_samples, plot=plot)
+                                                  fpr_samples=fpr_samples, plot=plot,
+                                                  threshold_overwrite=conf.threshold_overwrite)
 
     model.cfg.threshold = best_threshold
     if save_model:

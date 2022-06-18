@@ -1,3 +1,5 @@
+import math
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -131,7 +133,7 @@ def eval_topics_scores_random(publications_sample: pd.DataFrame, users_features_
     return pd.Series(scores.tolist())
 
 
-def plot_roc_curve(positive_author_scores:pd.Series, negative_author_scores:pd.Series,
+def plot_roc_curve(positive_author_scores: pd.Series, negative_author_scores: pd.Series,
                    fpr_samples=np.linspace(0.04, 0.3, 53), plot=True, figsize=(16, 16)):
     y_test = np.concatenate((np.ones(len(positive_author_scores)), np.zeros(len(negative_author_scores))))
     model_probs = np.concatenate((positive_author_scores.to_numpy(), negative_author_scores.to_numpy()))
@@ -170,8 +172,8 @@ def plot_roc_curve(positive_author_scores:pd.Series, negative_author_scores:pd.S
     return model_auc, fpr_to_threshold, thresholds
 
 
-def plot_fbeta_plot(positive_author_scores: pd.Series, negative_author_scores: pd.Series, beta=1, thresholds=None,
-                    plot=True, figsize=(16, 16)):
+def plot_phi_score(positive_author_scores: pd.Series, negative_author_scores: pd.Series, thresholds=None,
+                   plot=True, figsize=(16, 16)):
     y_test = np.concatenate((np.ones(len(positive_author_scores)), np.zeros(len(negative_author_scores))))
     model_probs = np.concatenate((positive_author_scores.to_numpy(), negative_author_scores.to_numpy()))
     if thresholds is None:
@@ -182,13 +184,17 @@ def plot_fbeta_plot(positive_author_scores: pd.Series, negative_author_scores: p
     for i in range(len(thresholds)):
         threshold = thresholds[i]
         # score = fbeta_score(y_test, model_probs > threshold, beta=beta)
-        cf_matrix = get_confusion_matrix(positive_author_scores, negative_author_scores, threshold)
-        if cf_matrix[1][1] == 0:
+        tn, fp, fn, tp = get_confusion_matrix(positive_author_scores, negative_author_scores, threshold).ravel()
+        # if cf_matrix[1][1] == 0:
+        #     score = 0
+        # else:
+        #     precision = cf_matrix[1][1] / (cf_matrix[1][1] + cf_matrix[0][1])
+        #     recall = cf_matrix[1][1] / (cf_matrix[1][1] + cf_matrix[1][0])
+        #     score = 2 * precision * recall / (precision + recall)
+        if (tp == 0 or tn == 0) and (fp == 0 or fn == 0):
             score = 0
         else:
-            precision = cf_matrix[1][1] / (cf_matrix[1][1] + cf_matrix[0][1])
-            recall = cf_matrix[1][1] / (cf_matrix[1][1] + cf_matrix[1][0])
-            score = 2 * precision * recall / (precision + recall)
+            score = (tp * tn - fn * fp) / math.sqrt((tp + fp) * (tp + fn) * (tn + fp) * (tn + fn))
         fbeta_scores.append(score)
         if best_fbeta_score < score:
             best_fbeta_score = score
@@ -209,7 +215,8 @@ def get_confusion_matrix(positive_author_scores: pd.Series, negative_author_scor
     return metrics.confusion_matrix(y_actual, y_predicted)
 
 
-def plot_confusion_matrix(positive_author_scores: pd.Series, negative_author_scores: pd.Series, threshold, figsize=(16, 16)):
+def plot_confusion_matrix(positive_author_scores: pd.Series, negative_author_scores: pd.Series, threshold,
+                          figsize=(16, 16)):
     cf_matrix = get_confusion_matrix(positive_author_scores, negative_author_scores, threshold)
 
     plt.figure(figsize=figsize)
@@ -232,6 +239,13 @@ def plot_confusion_matrix(positive_author_scores: pd.Series, negative_author_sco
 
 def get_precision(tn, fp, fn, tp):
     return (tp + tn) / (tp + tn + fn + fp)
+
+
+def get_f1_score(tn, fp, fn, tp):
+    p = tp / (tp + fp)
+    r = tp / (tp + fn)
+    f1 = 2 * p * r / (p + r)
+    return f1
 
 
 def get_negative_scores(publications_cv, users_features, num_negative_examples, metric):
@@ -263,17 +277,20 @@ def evaluate_and_fine_tune_model(publications_train: pd.DataFrame, publications_
 
     auc, fpr_to_threshold, _ = plot_roc_curve(positive_scores, negative_scores, plot=plot, fpr_samples=fpr_samples,
                                               figsize=figsize)
-    f1_score, best_threshold = plot_fbeta_plot(positive_scores, negative_scores, plot=plot, figsize=figsize,
+    phi_score, best_threshold = plot_phi_score(positive_scores, negative_scores, plot=plot, figsize=figsize,
                                                thresholds=fpr_to_threshold['threshold'].tolist())
     if threshold_overwrite is not None:
         best_threshold = threshold_overwrite
     if plot:
         plot_confusion_matrix(positive_scores, negative_scores, best_threshold, figsize=figsize)
+
     tn, fp, fn, tp = get_confusion_matrix(positive_scores, negative_scores, best_threshold).ravel()
     precision = get_precision(tn, fp, fn, tp)
+    f1_score = get_f1_score(tn, fp, fn, tp)
 
     return best_threshold, authors_cv, authors_negative_cv, users_features, {
         "auc": auc,
+        "phi_score": phi_score,
         "f1_score": f1_score,
         "precision": precision,
         "tn": tn,

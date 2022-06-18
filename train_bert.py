@@ -6,8 +6,12 @@ import wordcloud
 from sentence_transformers import SentenceTransformer
 from sklearn.decomposition import PCA
 from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import DistanceMetric
+import umap
 
 sentence_models = {}
+
 
 class BERTConfig:
     def __init__(self):
@@ -20,6 +24,7 @@ class BERTConfig:
         self.fpr_samples_count = 3000
         self.threshold = 0
         self.normalize_features = False
+        self.threshold_overwrite = None
         self.metric = "dot"
 
     def __repr__(self):
@@ -27,10 +32,11 @@ class BERTConfig:
 
 
 class BERTModel:
-    def __init__(self, sentence_model: SentenceTransformer, pca: PCA, cfg: BERTConfig):
+    def __init__(self, sentence_model: SentenceTransformer, scaler: StandardScaler, reducer: umap.UMAP, cfg: BERTConfig):
         self.cfg = cfg
         self.sentence_model = sentence_model
-        self.pca = pca
+        self.reducer = reducer
+        self.scaler = scaler
 
 
 def matrix_to_list(v):
@@ -85,24 +91,29 @@ def train_bert(publications_train: pd.DataFrame, conf: BERTConfig, recalculate_e
                                       recalculate_embeddings=recalculate_embeddings, progress=progress,
                                       batch_size=conf.batch_size,
                                       normalize_embeddings=conf.normalize_features)
-    pca = PCA(n_components=conf.pca_num_components)
-    features = pca.fit_transform(embeddings)
+    scaler = StandardScaler()
+    embeddings = scaler.fit_transform(embeddings)
+    reducer = umap.UMAP(n_components=conf.pca_num_components, metric='cosine')
+    features = reducer.fit_transform(embeddings)
+    # features = pca.fit_transform(embeddings)
     publications_train['feature'] = pd.Series(matrix_to_list(features), index=publications_train.index)
     if conf.normalize_features:
         publications_train['feature'] = publications_train['feature'].apply(common.normalize_array)
-    return BERTModel(sentence_model, pca, conf), publications_train
+    return BERTModel(sentence_model, scaler, reducer, conf), publications_train
 
 
 def save_bert_model(model: BERTModel):
     common.save_pickle(model.cfg, "model.bert.cfg")
-    common.save_pickle(model.pca, "model.bert.pca")
+    common.save_pickle(model.scaler, "model.bert.scaler")
+    common.save_pickle(model.reducer, "model.bert.reducer")
 
 
 def load_bert_model():
     conf = common.load_pickle("model.bert.cfg")
     sentence_model = SentenceTransformer(conf.embedding_model, device=conf.device)
-    pca = common.load_pickle("model.bert.pca")
-    return BERTModel(sentence_model, pca, conf)
+    scaler = common.load_pickle("model.bert.scaler")
+    reducer = common.load_pickle("model.bert.reducer")
+    return BERTModel(sentence_model, scaler, reducer, conf)
 
 
 def eval_bert(model: BERTModel, publications: pd.DataFrame, recalculate_embeddings=False, progress=True):
@@ -112,7 +123,8 @@ def eval_bert(model: BERTModel, publications: pd.DataFrame, recalculate_embeddin
                                       recalculate_embeddings=recalculate_embeddings, progress=progress,
                                       batch_size=model.cfg.batch_size,
                                       normalize_embeddings=model.cfg.normalize_features)
-    features = model.pca.transform(embeddings)
+    embeddings_scaled = model.scaler.transform(embeddings)
+    features = model.reducer.transform(embeddings_scaled)
     publications['feature'] = pd.Series(matrix_to_list(features), index=publications.index)
     if model.cfg.normalize_features:
         publications['feature'] = publications['feature'].apply(common.normalize_array)
@@ -121,7 +133,8 @@ def eval_bert(model: BERTModel, publications: pd.DataFrame, recalculate_embeddin
 
 def visualize_author_keywords(model: BERTModel, publications: pd.DataFrame, feature: np.ndarray, top_words=20,
                               ngram_range=(1, 3), metric='dot', figsize=(8, 8)):
-    embedding = model.pca.inverse_transform(feature)
+    embedding_scaled = model.reducer.inverse_transform(feature)
+    embedding = model.scaler.inverse_transform(embedding_scaled)
     docs = publications['abstract_text_clean'].tolist()
     vectorizer = CountVectorizer(stop_words='english', ngram_range=ngram_range)
     vectorizer.fit(docs)
@@ -147,7 +160,7 @@ def train_and_evaluate_bert(publications_train: pd.DataFrame, publications_cv: p
                             authors_train: pd.DataFrame, authors_cv: pd.DataFrame, authors_negative_cv: pd.DataFrame,
                             users: pd.DataFrame, conf: BERTConfig, save_model=False, plot=False,
                             random_negative_examples=True, recalculate_embeddings=False, progress=True,
-                            figsize=(8, 8), threshold_overwrite=None):
+                            figsize=(8, 8)):
 
     model, publications_train = train_bert(publications_train, conf,
                                            recalculate_embeddings=recalculate_embeddings, progress=progress)
@@ -160,7 +173,7 @@ def train_and_evaluate_bert(publications_train: pd.DataFrame, publications_cv: p
                                                   authors_negative_cv, users, metric=conf.metric,
                                                   random_negative_examples=random_negative_examples,
                                                   fpr_samples=fpr_samples, plot=plot, figsize=figsize,
-                                                  threshold_overwrite=threshold_overwrite)
+                                                  threshold_overwrite=conf.threshold_overwrite)
 
     model.cfg.threshold = best_threshold
     if save_model:

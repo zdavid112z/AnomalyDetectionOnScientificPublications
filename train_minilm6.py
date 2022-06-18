@@ -60,25 +60,28 @@ if not bert_model_cached:
     bert_conf.batch_size = 32
     bert_conf.fpr_samples_from = 0
     bert_conf.fpr_samples_to = 1
-    bert_conf.fpr_samples_count = 3000
+    bert_conf.fpr_samples_count = 2
     bert_conf.normalize_features = False
-    bert_conf.metric = "dot"
+    bert_conf.metric = "cos"
 
+    print(time.time())
     bert, publications_bert_train, publications_bert_cv, authors_bert_cv, \
     authors_negative_bert_cv, users_features, performance_report = \
         train_bert.train_and_evaluate_bert(
             publications_bert_train, publications_bert_cv, authors_bert_train, authors_bert_cv,
-            authors_negative_bert_cv, users, bert_conf, save_model=True, plot=True,
-            random_negative_examples=False, recalculate_embeddings=False, progress=True,
-            figsize=(8, 8))
+            authors_negative_bert_cv, users, bert_conf, save_model=False, plot=False,
+            random_negative_examples=False, recalculate_embeddings=True, progress=True,
+            figsize=(8, 8), threshold_overwrite=0)
     print(performance_report)
 
+    print(time.time())
     publications_bert_test = train_bert.eval_bert(bert, publications_bert_test,
-                                                  recalculate_embeddings=False, progress=True)
+                                                  recalculate_embeddings=True, progress=True)
+    print(time.time())
 
-    common.save_dataframe(publications_bert_train, "publications_bert_train_minilm6")
-    common.save_dataframe(publications_bert_cv, "publications_bert_cv_minilm6")
-    common.save_dataframe(publications_bert_test, "publications_bert_test_minilm6")
+    #common.save_dataframe(publications_bert_train, "publications_bert_train_minilm6")
+    #common.save_dataframe(publications_bert_cv, "publications_bert_cv_minilm6")
+    #common.save_dataframe(publications_bert_test, "publications_bert_test_minilm6")
 else:
     publications_bert_train = common.load_dataframe("publications_bert_train_minilm6")
     publications_bert_cv = common.load_dataframe("publications_bert_cv_minilm6")
@@ -86,7 +89,7 @@ else:
     bert = train_bert.load_bert_model()
 
 pca_num_components = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 35, 50, 75, 100]
-normalize_features = [False, True]
+normalize_features = [False]
 metric = ['cos']
 choices = list(itertools.product(pca_num_components, normalize_features, metric))
 np.random.shuffle(choices)
@@ -110,7 +113,7 @@ for pca_num_components, normalize_features, metric in tqdm(choices):
     bert_conf.batch_size = 32
     bert_conf.fpr_samples_from = 0
     bert_conf.fpr_samples_to = 1
-    bert_conf.fpr_samples_count = 2
+    bert_conf.fpr_samples_count = 1000
     bert_conf.normalize_features = normalize_features
     bert_conf.metric = metric
 
@@ -118,8 +121,7 @@ for pca_num_components, normalize_features, metric in tqdm(choices):
         train_bert.train_and_evaluate_bert(
             publications_bert_train, publications_bert_cv, authors_bert_train, authors_bert_cv,
             authors_negative_bert_cv, users, bert_conf, save_model=False, plot=False,
-            random_negative_examples=False, recalculate_embeddings=False, progress=False,
-            threshold_overwrite=0)
+            random_negative_examples=False, recalculate_embeddings=False, progress=False)
 
     results.append(performance_report)
     print(performance_report)
