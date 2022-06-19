@@ -71,7 +71,7 @@ if not bert_model_cached:
             publications_bert_train, publications_bert_cv, authors_bert_train, authors_bert_cv,
             authors_negative_bert_cv, users, bert_conf, save_model=False, plot=False,
             random_negative_examples=False, recalculate_embeddings=True, progress=True,
-            figsize=(8, 8), threshold_overwrite=0)
+            figsize=(8, 8))
     print(performance_report)
 
     print(time.time())
@@ -88,19 +88,23 @@ else:
     publications_bert_test = common.load_dataframe("publications_bert_test_minilm6")
     bert = train_bert.load_bert_model()
 
-pca_num_components = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 35, 50, 75, 100]
-normalize_features = [False]
-metric = ['cos']
-choices = list(itertools.product(pca_num_components, normalize_features, metric))
+n_components = [3, 5, 8, 12, 15, 20, 25, 50]
+metric = ['cosine', 'euclidean']
+umap_min_dist = [0, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1]
+umap_n_neighbors = [3, 10, 30, 100, 300]
+choices = list(itertools.product(n_components, metric, umap_min_dist, umap_n_neighbors))
 np.random.shuffle(choices)
-# results = common.load_pickle("results_minilm6_1655467361_48.pickle")
+# results = common.load_pickle("results_minilm6_1655614633_2.pickle")
 results = []
 filename = f"results_minilm6_{int(time.time())}"
 i = 0
-for pca_num_components, normalize_features, metric in tqdm(choices):
+for n_components, metric, umap_min_dist, umap_n_neighbors in tqdm(choices):
     duplicate = False
     for r in results:
-        if r['pca_num_components'] == pca_num_components and r['normalize_features'] == normalize_features and r['metric'] == metric:
+        if r['n_components'] == n_components and\
+           r['metric'] == metric and\
+           r['umap_min_dist'] == umap_min_dist and\
+           r['umap_n_neighbors'] == umap_n_neighbors:
             duplicate = True
             break
     if duplicate:
@@ -109,19 +113,23 @@ for pca_num_components, normalize_features, metric in tqdm(choices):
     bert_conf = train_bert.BERTConfig()
     bert_conf.embedding_model = "all-MiniLM-L6-v2"
     bert_conf.device = "cuda"
-    bert_conf.pca_num_components = pca_num_components
+    bert_conf.n_components = n_components
+    bert_conf.umap_n_neighbors = umap_n_neighbors
+    bert_conf.umap_min_dist = umap_min_dist
+    bert_conf.metric = metric
     bert_conf.batch_size = 32
     bert_conf.fpr_samples_from = 0
     bert_conf.fpr_samples_to = 1
-    bert_conf.fpr_samples_count = 1000
-    bert_conf.normalize_features = normalize_features
-    bert_conf.metric = metric
+    bert_conf.fpr_samples_count = 100
+    bert_conf.normalize_features = False
+    bert_conf.verbose = True
+    bert_conf.reducer = "umap"
 
     _, _, _, _, _, _, performance_report = \
         train_bert.train_and_evaluate_bert(
             publications_bert_train, publications_bert_cv, authors_bert_train, authors_bert_cv,
             authors_negative_bert_cv, users, bert_conf, save_model=False, plot=False,
-            random_negative_examples=False, recalculate_embeddings=False, progress=False)
+            random_negative_examples=True, recalculate_embeddings=False, progress=False)
 
     results.append(performance_report)
     print(performance_report)

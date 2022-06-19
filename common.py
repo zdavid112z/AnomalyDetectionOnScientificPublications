@@ -64,6 +64,7 @@ def display_wordcloud(words_weights, figsize=(16, 16)):
     if len(words_weights) == 1:
         wc = wordcloud.WordCloud(width=800, height=800)
         wc.generate_from_frequencies(words_weights[0])
+        plt.figure(figsize=figsize)
         plt.imshow(wc.to_image(), interpolation='bilinear')
         plt.axis("off")
     else:

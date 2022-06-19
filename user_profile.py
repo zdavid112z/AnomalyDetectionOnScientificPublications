@@ -74,24 +74,42 @@ def cos_similarity(a, b):
 
 # Bigger is better
 def eval_score_simple(a, b, metric):
-    if metric == "cos":
+    if metric == "cos" or metric == "cosine":
         return (np.dot(a, b) / np.linalg.norm(a)) / np.linalg.norm(b)
     elif metric == "dot":
         return np.dot(a, b)
     elif metric == "norm":
         return -np.linalg.norm(a - b)
-    raise Exception("metric must be 'cos', 'dot' or 'norm'")
+    elif metric == "euclidean":
+        return -np.linalg.norm(a - b)
+    raise Exception("metric must be 'cos', 'dot', 'norm' or 'euclidean")
 
 
 # Bigger is better
-def eval_score(feature, mean, std, metric):
-    if metric == "cos":
+def eval_score(feature, mean, std, features, metric):
+    if metric == "cos" or metric == "cosine":
         return (np.dot(feature, mean) / np.linalg.norm(feature)) / np.linalg.norm(mean)
     elif metric == "dot":
         return np.dot(feature, mean)
     elif metric == "norm":
         return log_norm(feature, mean, std)
-    raise Exception("metric must be 'cos', 'dot' or 'norm'")
+    elif metric == "euclidean":
+        return -np.linalg.norm(feature - mean)
+    elif metric == "cos_max" or metric == "cosine_max":
+        max_score = None
+        for f in features:
+            score = (np.dot(feature, f) / np.linalg.norm(feature)) / np.linalg.norm(f)
+            if max_score is None or score > max_score:
+                max_score = score
+        return max_score
+    elif metric == "euclidean_max":
+        max_score = None
+        for f in features:
+            score = -np.linalg.norm(feature - f)
+            if max_score is None or score > max_score:
+                max_score = score
+        return max_score
+    raise Exception("metric must be 'cos', 'dot', 'norm', 'euclidean', 'cos_max' or 'euclidean_max'")
 
 
 def eval_topics_scores(publications: pd.DataFrame, users_features: pd.DataFrame, authors: pd.DataFrame, metric: str,
@@ -103,11 +121,12 @@ def eval_topics_scores(publications: pd.DataFrame, users_features: pd.DataFrame,
             pub = publications.loc[pub_id]
             feature = pub['feature']
             user = users_features.loc[user_id]
+            features = user['publication_features']
             mean = user['features_mean']
             std = user['features_std']
         except Exception as e:
             return None
-        return eval_score(feature, mean, std, metric)
+        return eval_score(feature, mean, std, features, metric)
 
     authors = authors.copy()
     if progress:
@@ -126,9 +145,10 @@ def eval_topics_scores_random(publications_sample: pd.DataFrame, users_features_
         pub = publications_sample.iloc[i]
         user = users_features_sample.iloc[i]
         feature = pub['feature']
+        features = user['publication_features']
         mean = user['features_mean']
         std = user['features_std']
-        s = eval_score(feature, mean, std, metric)
+        s = eval_score(feature, mean, std, features, metric)
         scores[i] = np.sum(s)
     return pd.Series(scores.tolist())
 
