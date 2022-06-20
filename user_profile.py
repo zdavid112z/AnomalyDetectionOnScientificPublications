@@ -74,13 +74,13 @@ def cos_similarity(a, b):
 
 # Bigger is better
 def eval_score_simple(a, b, metric):
-    if metric == "cos" or metric == "cosine":
+    if metric == "cos" or metric == "cosine" or metric == "cos_max" or metric == "cosine_max":
         return (np.dot(a, b) / np.linalg.norm(a)) / np.linalg.norm(b)
     elif metric == "dot":
         return np.dot(a, b)
     elif metric == "norm":
         return -np.linalg.norm(a - b)
-    elif metric == "euclidean":
+    elif metric == "euclidean" or metric == "euclidean_max":
         return -np.linalg.norm(a - b)
     raise Exception("metric must be 'cos', 'dot', 'norm' or 'euclidean")
 

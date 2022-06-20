@@ -50,10 +50,11 @@ class LDAConfig:
 
 
 class LDAModel:
-    def __init__(self, model, dictionary, corpus, cfg: LDAConfig):
+    def __init__(self, model, dictionary, corpus, texts, cfg: LDAConfig):
         self.model = model
         self.dictionary = dictionary
         self.corpus = corpus
+        self.texts = texts
         self.cfg = cfg
 
 
@@ -85,7 +86,7 @@ def train_lda(train_publications, conf, debug_logging=True):
     if debug_logging:
         print('Average topic coherence: %.4f.' % avg_topic_coherence)
         pprint(top_topics)
-    return LDAModel(lda_model, dictionary, corpus_filtered, conf)
+    return LDAModel(lda_model, dictionary, corpus_filtered, corpus, conf)
 
 
 def save_lda_model(model: LDAModel):
@@ -93,6 +94,7 @@ def save_lda_model(model: LDAModel):
     model.dictionary.save("lda.dictionary")
     common.save_pickle(model.cfg, "lda_cfg")
     common.save_pickle(model.corpus, "lda_corpus")
+    common.save_pickle(model.texts, "lda_texts")
 
 
 def load_lda_model():
@@ -100,6 +102,7 @@ def load_lda_model():
         gensim.models.LdaModel.load("lda.model"),
         corpora.Dictionary.load("lda.dictionary"),
         common.load_pickle("lda_corpus"),
+        common.load_pickle("lda_texts"),
         common.load_pickle("lda_cfg"))
 
 
@@ -119,8 +122,8 @@ def eval_lda(model: LDAModel, publications: pd.DataFrame, progress=False):
     return publications
 
 
-def visualize_topics(model: LDAModel, figsize=(8, 8)):
-    top_topics = model.model.top_topics(model.corpus)  # , num_words=20)
+def visualize_topics(model: LDAModel, figsize=(8, 8), coherence="c_npmi"):
+    top_topics = model.model.top_topics(model.corpus, texts=model.texts, coherence=coherence)  # , num_words=20)
     # Average topic coherence is the sum of topic coherences of all topics, divided by the number of topics.
     avg_topic_coherence = sum([t[1] for t in top_topics]) / model.cfg.num_topics
     print('Average topic coherence: %.4f.' % avg_topic_coherence)

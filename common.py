@@ -84,3 +84,11 @@ def display_wordcloud(words_weights, figsize=(16, 16)):
             ax.axis("off")
             i += 1
         fig.show()
+
+
+def series_to_matrix(series: pd.Series) -> np.ndarray:
+    n = len(series)
+    result = np.zeros((n, series.iloc[0].shape[0]))
+    for i in range(n):
+        result[i, :] = series.iloc[i]
+    return result

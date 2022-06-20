@@ -9,6 +9,9 @@ from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.preprocessing import StandardScaler
 import umap
 from gensim.models.coherencemodel import CoherenceModel
+import gensim.corpora as corpora
+from sklearn.cluster import KMeans
+from tqdm import tqdm
 
 
 sentence_models = {}
@@ -33,6 +36,9 @@ class BERTConfig:
         self.reducer = "pca"
         self.verbose = False
         self.use_scaler = True
+        self.clustering_algorithm = "kmeans"
+        self.n_clusters = 10
+        self.random_state = 42
 
     def __repr__(self):
         return str(self.__dict__)
@@ -40,12 +46,14 @@ class BERTConfig:
 
 class BERTModel:
     def __init__(self, sentence_model: SentenceTransformer, scaler: StandardScaler, umap_reducer: umap.UMAP,
-                 pca_reducer: PCA, cfg: BERTConfig):
+                 pca_reducer: PCA, kmeans: KMeans, cfg: BERTConfig):
         self.cfg = cfg
         self.sentence_model = sentence_model
         self.umap_reducer = umap_reducer
         self.pca_reducer = pca_reducer
         self.scaler = scaler
+        self.kmeans = kmeans
+
         self.reducer = None
         if self.umap_reducer is not None:
             self.reducer = umap_reducer
@@ -92,6 +100,62 @@ def eval_bert_embeddings(publications: pd.DataFrame, sentence_model: SentenceTra
     return embeddings
 
 
+def train_kmeans(publications_train_features: pd.Series, n_clusters, random_state) -> KMeans:
+    embeddings_size = publications_train_features.iloc[0].shape[0]
+    publications_bert_train_features = np.zeros((len(publications_train_features), embeddings_size))
+    for i in range(len(publications_train_features)):
+        publications_bert_train_features[i, :] = publications_train_features.iloc[i]
+
+    kmeans = KMeans(n_clusters=n_clusters, random_state=random_state)
+    kmeans.fit(publications_bert_train_features)
+    return kmeans
+
+
+def get_coherence(model: BERTModel, publications_bert_train_abstracts=None, word_embeddings=None, words=None,
+                  coherence="c_npmi", plot=True, figsize=(8, 8), top_words=20):
+    if model.cfg.clustering_algorithm != "kmeans":
+        raise Exception("must have a trained clustering algorithm")
+
+    vectorizer = CountVectorizer(stop_words='english')
+    vectorizer.fit(publications_bert_train_abstracts)
+    analyzer = vectorizer.build_analyzer()
+
+    texts = []
+    for i in tqdm(range(len(publications_bert_train_abstracts))):
+        text = analyzer(publications_bert_train_abstracts.iloc[i])
+        if len(text) > 0:
+            texts.append(text)
+
+    topics = []
+
+    if word_embeddings is None or words is None:
+        word_embeddings, words = eval_features_for_words(model, texts, ngram_range=(1, 1))
+    top_words_per_topic = []
+
+    for i in range(model.kmeans.cluster_centers_.shape[0]):
+        topic_feature = model.kmeans.cluster_centers_[i, :]
+        topic_top_words = get_top_words(model, topic_feature,
+                                        word_embeddings=word_embeddings,
+                                        words=words,
+                                        ngram_range=(1, 1),
+                                        plot=False,
+                                        top_words=top_words)
+        topics.append(topic_top_words.index.tolist())
+        current_topic_top_words = {}
+        for word in topic_top_words.index.tolist():
+            current_topic_top_words[word] = topic_top_words['similarity'].loc[word]
+        top_words_per_topic.append(current_topic_top_words)
+
+    if plot:
+        common.display_wordcloud(top_words_per_topic, figsize)
+
+    dictionary_gensim = corpora.Dictionary(texts)
+    cm = CoherenceModel(topics=topics, texts=texts,
+                        dictionary=dictionary_gensim, coherence=coherence)
+    coherence = cm.get_coherence()
+    return coherence, word_embeddings, words
+
+
 def train_bert(publications_train: pd.DataFrame, conf: BERTConfig, recalculate_embeddings=True, progress=True):
     publications_train = publications_train.copy()
 
@@ -132,7 +196,14 @@ def train_bert(publications_train: pd.DataFrame, conf: BERTConfig, recalculate_e
     publications_train['feature'] = pd.Series(matrix_to_list(features), index=publications_train.index)
     if conf.normalize_features:
         publications_train['feature'] = publications_train['feature'].apply(common.normalize_array)
-    return BERTModel(sentence_model, scaler, umap_reducer, pca_reducer, conf), publications_train
+
+    kmeans = None
+    if conf.clustering_algorithm == "kmeans":
+        kmeans = train_kmeans(publications_train['feature'],
+                              n_clusters=conf.n_clusters,
+                              random_state=conf.random_state)
+
+    return BERTModel(sentence_model, scaler, umap_reducer, pca_reducer, kmeans, conf), publications_train
 
 
 def save_bert_model(model: BERTModel):
@@ -143,6 +214,8 @@ def save_bert_model(model: BERTModel):
         common.save_pickle(model.pca_reducer, "model.bert.pca_reducer")
     elif model.cfg.reducer == "umap":
         common.save_pickle(model.umap_reducer, "model.bert.umap_reducer")
+    if model.cfg.clustering_algorithm == "kmeans":
+        common.save_pickle(model.umap_reducer, "model.bert.kmeans")
 
 
 def load_bert_model():
@@ -157,7 +230,10 @@ def load_bert_model():
         pca_reducer = common.load_pickle("model.bert.pca_reducer")
     elif conf.reducer == "umap":
         umap_reducer = common.load_pickle("model.bert.umap_reducer")
-    return BERTModel(sentence_model, scaler, umap_reducer, pca_reducer, conf)
+    kmeans = None
+    if conf.clustering_algorithm == "kmeans":
+        kmeans = common.load_pickle("model.bert.kmeans")
+    return BERTModel(sentence_model, scaler, umap_reducer, pca_reducer, kmeans, conf)
 
 
 def eval_bert(model: BERTModel, publications: pd.DataFrame, recalculate_embeddings=False, progress=True):
@@ -186,7 +262,7 @@ def eval_bert(model: BERTModel, publications: pd.DataFrame, recalculate_embeddin
     return publications
 
 
-def eval_features_for_words(model: BERTModel, publications: pd.DataFrame, ngram_range):
+def eval_features_for_words(model: BERTModel, publications, ngram_range):
     if type(publications) == list:
         docs = [" ".join(p) for p in publications]
     elif type(publications) == pd.DataFrame:
@@ -202,9 +278,9 @@ def eval_features_for_words(model: BERTModel, publications: pd.DataFrame, ngram_
 
 def get_top_words(model: BERTModel, feature: np.ndarray, publications: pd.DataFrame = None,
                   word_embeddings=None, words=None, top_words=20,
-                  ngram_range=(1, 3), metric='dot', figsize=(8, 8), plot=True):
+                  ngram_range=(1, 3), figsize=(8, 8), plot=True):
     if model.reducer is not None:
-        embedding_scaled = model.reducer.inverse_transform(feature)
+        embedding_scaled = model.reducer.inverse_transform(feature.reshape(1, -1))
     else:
         embedding_scaled = feature
 
@@ -218,7 +294,7 @@ def get_top_words(model: BERTModel, feature: np.ndarray, publications: pd.DataFr
 
     similarities = []
     for i in range(word_embeddings.shape[0]):
-        similarity = user_profile.eval_score_simple(embedding, word_embeddings[i, :], metric)
+        similarity = user_profile.eval_score_simple(embedding, word_embeddings[i, :], model.cfg.metric)
         similarities.append(similarity)
     df = pd.DataFrame(similarities, index=words, columns=['similarity'])
     df = df.sort_values('similarity', ascending=False)

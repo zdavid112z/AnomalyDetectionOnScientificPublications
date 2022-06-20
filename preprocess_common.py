@@ -11,13 +11,13 @@ def init_nlp():
     def create_language_detector(nlp, name):
         return LanguageDetector()
 
-    # nlp = spacy.load('en_core_web_trf')
-    nlp = spacy.load('en_core_web_lg')
+    nlp = spacy.load('en_core_web_trf')
+    # nlp = spacy.load('en_core_web_lg')
     nlp.add_pipe('language_detector2', name='language_detector', last=True, validate=False)
     return nlp
 
 
-def load_lang_detects(publications:pd.DataFrame, nlp):
+def load_lang_detects(publications: pd.DataFrame, nlp):
     def detect_language(text):
         if text is not None and type(text) == str and len(text) > 0:
             return pd.Series(nlp(text)._.language)
@@ -30,7 +30,7 @@ def load_lang_detects(publications:pd.DataFrame, nlp):
 
 
 # removes publications with non-english or missing abstracts
-def preprocess_publications_common(publications:pd.DataFrame, nlp):
+def preprocess_publications_common(publications: pd.DataFrame, nlp):
     lang_detects = load_lang_detects(publications, nlp)
     publications['language'] = lang_detects['language']
     publications['lang_score'] = lang_detects['score']
