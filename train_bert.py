@@ -39,6 +39,7 @@ class BERTConfig:
         self.clustering_algorithm = "kmeans"
         self.n_clusters = 10
         self.random_state = 42
+        self.score = "phi"
 
     def __repr__(self):
         return str(self.__dict__)
@@ -324,7 +325,7 @@ def train_and_evaluate_bert(publications_train: pd.DataFrame, publications_cv: p
                                                   authors_negative_cv, users, metric=conf.metric,
                                                   random_negative_examples=random_negative_examples,
                                                   fpr_samples=fpr_samples, plot=plot, figsize=figsize,
-                                                  threshold_overwrite=conf.threshold_overwrite)
+                                                  threshold_overwrite=conf.threshold_overwrite, score=conf.score)
 
     model.cfg.threshold = best_threshold
     if save_model:

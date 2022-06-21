@@ -3,6 +3,7 @@ import math
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import scipy.spatial.distance
 from tqdm import tqdm
 from sklearn.metrics import roc_auc_score, roc_curve, fbeta_score
 import seaborn as sns
@@ -75,7 +76,8 @@ def cos_similarity(a, b):
 # Bigger is better
 def eval_score_simple(a, b, metric):
     if metric == "cos" or metric == "cosine" or metric == "cos_max" or metric == "cosine_max":
-        return (np.dot(a, b) / np.linalg.norm(a)) / np.linalg.norm(b)
+        # return (np.dot(a, b) / np.linalg.norm(a)) / np.linalg.norm(b)
+        return 1-scipy.spatial.distance.cosine(a, b)
     elif metric == "dot":
         return np.dot(a, b)
     elif metric == "norm":
@@ -88,7 +90,8 @@ def eval_score_simple(a, b, metric):
 # Bigger is better
 def eval_score(feature, mean, std, features, metric):
     if metric == "cos" or metric == "cosine":
-        return (np.dot(feature, mean) / np.linalg.norm(feature)) / np.linalg.norm(mean)
+        # return (np.dot(feature, mean) / np.linalg.norm(feature)) / np.linalg.norm(mean)
+        return 1 - scipy.spatial.distance.cosine(feature, mean)
     elif metric == "dot":
         return np.dot(feature, mean)
     elif metric == "norm":
@@ -98,7 +101,8 @@ def eval_score(feature, mean, std, features, metric):
     elif metric == "cos_max" or metric == "cosine_max":
         max_score = None
         for f in features:
-            score = (np.dot(feature, f) / np.linalg.norm(feature)) / np.linalg.norm(f)
+            # score = (np.dot(feature, f) / np.linalg.norm(feature)) / np.linalg.norm(f)
+            score = scipy.spatial.distance.cosine(feature, f)
             if max_score is None or score > max_score:
                 max_score = score
         return max_score
@@ -192,14 +196,14 @@ def plot_roc_curve(positive_author_scores: pd.Series, negative_author_scores: pd
     return model_auc, fpr_to_threshold, thresholds
 
 
-def plot_phi_score(positive_author_scores: pd.Series, negative_author_scores: pd.Series, thresholds=None,
-                   plot=True, figsize=(16, 16)):
+def plot_score(positive_author_scores: pd.Series, negative_author_scores: pd.Series, thresholds=None,
+               plot=True, figsize=(16, 16), score="phi"):
     y_test = np.concatenate((np.ones(len(positive_author_scores)), np.zeros(len(negative_author_scores))))
     model_probs = np.concatenate((positive_author_scores.to_numpy(), negative_author_scores.to_numpy()))
     if thresholds is None:
         thresholds = sorted(model_probs.tolist())
     fbeta_scores = []
-    best_fbeta_score = -1
+    best_score = -1
     best_threshold = 0
     for i in range(len(thresholds)):
         threshold = thresholds[i]
@@ -211,22 +215,27 @@ def plot_phi_score(positive_author_scores: pd.Series, negative_author_scores: pd
         #     precision = cf_matrix[1][1] / (cf_matrix[1][1] + cf_matrix[0][1])
         #     recall = cf_matrix[1][1] / (cf_matrix[1][1] + cf_matrix[1][0])
         #     score = 2 * precision * recall / (precision + recall)
-        if (tp == 0 or tn == 0) and (fp == 0 or fn == 0):
-            score = 0
+        if score == "phi":
+            if (tp == 0 or tn == 0) and (fp == 0 or fn == 0):
+                s = 0
+            else:
+                s = (tp * tn - fn * fp) / math.sqrt((tp + fp) * (tp + fn) * (tn + fp) * (tn + fn))
+        elif score == "f1":
+            s = get_f1_score(tn, fp, fn, tp)
         else:
-            score = (tp * tn - fn * fp) / math.sqrt((tp + fp) * (tp + fn) * (tn + fp) * (tn + fn))
-        fbeta_scores.append(score)
-        if best_fbeta_score < score:
-            best_fbeta_score = score
+            raise Exception("Unknown score")
+        fbeta_scores.append(s)
+        if best_score < s:
+            best_score = s
             best_threshold = threshold
     if plot:
         fig = plt.figure(figsize=figsize)
         ax = fig.add_subplot(111)
         plt.plot(thresholds, fbeta_scores)
-        ax.set_title("F1 score by Threshold")
+        ax.set_title(f"{score.upper()} score by Threshold")
         ax.set_xlabel("Threshold")
-        ax.set_ylabel("F1 score")
-    return best_fbeta_score, best_threshold
+        ax.set_ylabel(f"{score.upper()} score")
+    return best_score, best_threshold
 
 
 def get_confusion_matrix(positive_author_scores: pd.Series, negative_author_scores: pd.Series, threshold):
@@ -262,6 +271,8 @@ def get_precision(tn, fp, fn, tp):
 
 
 def get_f1_score(tn, fp, fn, tp):
+    if tp == 0:
+        return 0
     p = tp / (tp + fp)
     r = tp / (tp + fn)
     f1 = 2 * p * r / (p + r)
@@ -280,7 +291,8 @@ def evaluate_and_fine_tune_model(publications_train: pd.DataFrame, publications_
                                  authors_train: pd.DataFrame, authors_cv: pd.DataFrame,
                                  authors_negative_cv: pd.DataFrame, users: pd.DataFrame,
                                  metric: str, random_negative_examples: bool, fpr_samples: np.ndarray,
-                                 plot: bool, figsize=(8, 8), threshold_overwrite=None):
+                                 plot: bool, figsize=(8, 8), threshold_overwrite=None,
+                                 score="phi"):
     users_features = add_publication_features_to_users(publications_train, users, authors_train)
     users_features = build_user_profiles_simple(users_features)
     users_features = users_features.dropna(subset='profile')
@@ -297,8 +309,9 @@ def evaluate_and_fine_tune_model(publications_train: pd.DataFrame, publications_
 
     auc, fpr_to_threshold, _ = plot_roc_curve(positive_scores, negative_scores, plot=plot, fpr_samples=fpr_samples,
                                               figsize=figsize)
-    phi_score, best_threshold = plot_phi_score(positive_scores, negative_scores, plot=plot, figsize=figsize,
-                                               thresholds=fpr_to_threshold['threshold'].tolist())
+    phi_score, best_threshold = plot_score(positive_scores, negative_scores, plot=plot, figsize=figsize,
+                                           thresholds=fpr_to_threshold['threshold'].tolist(),
+                                           score=score)
     if threshold_overwrite is not None:
         best_threshold = threshold_overwrite
     if plot:
