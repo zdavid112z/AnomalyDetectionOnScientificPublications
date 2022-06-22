@@ -76,8 +76,8 @@ def cos_similarity(a, b):
 # Bigger is better
 def eval_score_simple(a, b, metric):
     if metric == "cos" or metric == "cosine" or metric == "cos_max" or metric == "cosine_max":
-        # return (np.dot(a, b) / np.linalg.norm(a)) / np.linalg.norm(b)
-        return 1-scipy.spatial.distance.cosine(a, b)
+        return (np.dot(a, b) / np.linalg.norm(a)) / np.linalg.norm(b)
+        # return 1-scipy.spatial.distance.cosine(a, b)
     elif metric == "dot":
         return np.dot(a, b)
     elif metric == "norm":
@@ -90,8 +90,8 @@ def eval_score_simple(a, b, metric):
 # Bigger is better
 def eval_score(feature, mean, std, features, metric):
     if metric == "cos" or metric == "cosine":
-        # return (np.dot(feature, mean) / np.linalg.norm(feature)) / np.linalg.norm(mean)
-        return 1 - scipy.spatial.distance.cosine(feature, mean)
+        return (np.dot(feature, mean) / np.linalg.norm(feature)) / np.linalg.norm(mean)
+        # return 1 - scipy.spatial.distance.cosine(feature, mean)
     elif metric == "dot":
         return np.dot(feature, mean)
     elif metric == "norm":

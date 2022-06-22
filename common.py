@@ -73,7 +73,7 @@ def display_wordcloud(words_weights, figsize=(16, 16)):
         fig, axes = plt.subplots(rows, 4, figsize=figsize)
         i = 0
         for words_dict in words_weights:
-            wc = wordcloud.WordCloud(width=400, height=400)
+            wc = wordcloud.WordCloud(width=800, height=800)
             wc.generate_from_frequencies(words_dict)
             ax = axes[i // 4][i % 4]
             ax.imshow(wc.to_image(), interpolation='bilinear')

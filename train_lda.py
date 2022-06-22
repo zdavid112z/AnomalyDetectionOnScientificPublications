@@ -133,7 +133,7 @@ def visualize_topics(model: LDAModel, figsize=(8, 8), coherence="c_npmi"):
 def train_and_evaluate_lda(publications_train: pd.DataFrame, publications_cv: pd.DataFrame, authors_train: pd.DataFrame,
                            authors_cv: pd.DataFrame, authors_negative_cv: pd.DataFrame, users: pd.DataFrame,
                            conf: LDAConfig, debug_logging=False, save_model=False, plot=False,
-                           random_negative_examples=True):
+                           random_negative_examples=True, figsize=(8, 8)):
 
     model = train_lda(publications_train, conf, debug_logging=debug_logging)
     publications_train = eval_lda(model, publications_train)
@@ -145,7 +145,8 @@ def train_and_evaluate_lda(publications_train: pd.DataFrame, publications_cv: pd
                                                   authors_negative_cv, users, metric=conf.metric,
                                                   random_negative_examples=random_negative_examples,
                                                   fpr_samples=fpr_samples, plot=plot,
-                                                  threshold_overwrite=conf.threshold_overwrite)
+                                                  threshold_overwrite=conf.threshold_overwrite,
+                                                  figsize=figsize)
 
     model.cfg.threshold = best_threshold
     if save_model:
