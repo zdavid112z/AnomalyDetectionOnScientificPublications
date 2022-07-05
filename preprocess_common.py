@@ -30,10 +30,11 @@ def load_lang_detects(publications: pd.DataFrame, nlp):
 
 
 # removes publications with non-english or missing abstracts
-def preprocess_publications_common(publications: pd.DataFrame, nlp):
+def preprocess_publications_common(publications: pd.DataFrame, nlp, save=False):
     lang_detects = load_lang_detects(publications, nlp)
     publications['language'] = lang_detects['language']
     publications['lang_score'] = lang_detects['score']
     publications = publications[publications['language'] == 'en'][publications['lang_score'] > 0.99]
-    save_dataframe(publications, "publications_en")
+    if save:
+        save_dataframe(publications, "publications_en")
     return publications

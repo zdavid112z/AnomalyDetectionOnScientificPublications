@@ -6,7 +6,7 @@ from unidecode import unidecode
 from common import *
 
 
-def preprocess_lda(publications_en):
+def preprocess_lda(publications_en, save=False):
     lemmatizer = WordNetLemmatizer()
     stemmer = PorterStemmer()
     clean_re = re.compile(r'</?[a-z]+(:.+)?>|<([\w-]*|)>')
@@ -34,5 +34,6 @@ def preprocess_lda(publications_en):
     publications_en['abstract_text_clean'] = publications_en['abstract_text'].progress_map(lambda s: preprocess(s))
     publications_en = publications_en[publications_en['abstract_text_clean'] != '']
     publications_en = publications_en.drop_duplicates(subset='abstract_text_clean', keep='first')
-    save_dataframe(publications_en, "publications_lda")
+    if save:
+        save_dataframe(publications_en, "publications_lda")
     return publications_en

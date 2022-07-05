@@ -1,0 +1,40 @@
+GPU:
+3min 2s ± 1.2 s per loop (mean ± std. dev. of 7 runs, 1 loop each)
+1477.8023798465729
+
+
+1056.2125730514526
+
+Batches: 100%
+670/670 [11:55<00:00, 7.49it/s]
+Batches: 100%
+224/224 [04:00<00:00, 4.57it/s]
+
+996.8059692382812
+
+
+Buna ziua! Eu sunt David, iar proiectul meu de diploma este Anomaly Detection on Scientific Publications
+
+Bun, care e problema pe care o rezolva acest proiect? Aceasta ar fi problema identificarii de autori pentru platforma CRESCDI. Practic, sa determin daca un autor a scris o anumita publicatie. In aceasta platforma sunt importate publicatii din diverse surse externe, iar o functionalitate importanta este cea de a vedea care sunt publicatiile scrise de un anumit autor. Aceasta corelare intre o publicatie si un utilizator nu poate fi facuta doar dupa numele autorului, pentru ca pot exista autori cu acelasi nume. Astfel, recurgem la a examina si continutul lucrarilor, mai exact la textul abstract.
+
+Principala presupunere a proiectului e faptul ca autorii, in general, scriu publicatii in domeniul lor de specialitate, fara a devia foarte mult de la acesta. Astfel, putem atribui fiecarei publicatii un anumit domeniu, sau topic, spre exemplu medicina, chimie, tehnologia informatiei si asa mai departe.
+
+Aceasta atribuire ne duce cu gandul la a folosi un topic model, care e un model ce extrage topicele dintr-un set de documente.
+
+Astfel, o prima arhitectura a proiectului arata astfel: analizam publicatiile din setul de date folosind un topic model, care genereaza o lista de topice, fiecare topic avand si o lista de cuvinte cheie, si care atribuie fiecarei publicatii o lista de probabilitati ce reprezinta apartenenta la un topic dat. Practic, ne spune cat la suta o publicatie e despre chimie, computer vision etc. Stiind aceste lucruri, putem construi un profil al fiecarui utilizator, folosindu-ne de publicatiile sale. In practica, acest profil e doar o medie aritmetica a publicatiilor autorului. Astfel, daca un autor a scris in mare parte articole medicale, profilul sau va indica acest lucru.
+
+Totul e ok pana aici, dar am vrea sa ne folosim si de un transformer. In ultimii ani, transformer-ele au fost folosite pentru a obtine performante remarcabile in probleme ce tin de procesarea limbajului natural, si am vrea sa incercam sa integram unul si in solutia noastra. Exista topic modele care folosesc transformere, insa acestea nu au performance atat de bune, introducand destul de multa complexitate in sistem.
+
+Astfel, o alta presupune a solutiei e faptul ca un transformer genereaza embeddings-uri sau vectori similari pentru documente similare. De aici se observa similitudinea cu un topic model, deoarece, in mod similar, un topic model genereaza vectori similari pentru documente similare, numai ca vectorii in sine au semnificatii diferite.
+
+Arhitectura noastra ramane astfel aproape neschimbata: trecem publicatiile prin transformer, acesta genereaza un vector pentru fiecare publicatie, iar profilul fiecarui utilizator e media artmetica a vectorilor asociati publicatiilor scrise de acel autor.
+
+Putem astfel calcula un scor de similitudine intre o publicatie si un autor, in practica am folosit cosine similarity, iar acest scor e proportional cu probabilitatea ca un autor dat sa fi scris publicatia interogata. Deoarece scorul generat e arbitrat, trebuie sa stabilim o valoare de prag pentru a diferentia exemplele pozitive de cele negative, iar acest lucru e facut optimizand coeficientul Phi, care e o metrica similara cu F1 score-ul.
+
+Astfel, rezultatele pe setul de test sunt urmatoarele: avem 91% acuratete, un F1 score de 0.95, durata necesara antrenarii modelului e de 15 minute fara sa foloseasca o placa video, cu placa video dureaza 3 minute, iar timpul necesar evaluarii unui exemplu e de 40ms, din nou, fara placa video.
+
+Putem augmenta solutia aceasta pentru a extrage cuvinte cheie pentru o publicatie, un autor, si chiar pentru generarea topicelor si extragerea cuvintelor lor cheie. Pornind de la presupunerea ca embedding-urile sunt similare pentru publicatii similare, putem aplica un algoritm de clustering pentru a grupa impreuna publicatiile similare. Centroizii generati sunt comparati cu embeddings-urile cuvintelor din publicatii, iar scorurile cele mai mari indica cuvintele cheie. Similar, in loc de centroizi, putem folosi profilul unui autor sau o publicatie.
+
+Am generat pentru cativa autori cuvintele cheie, care in mare parte sunt determinate corect. Mai exista unele cuvinte comune identificate gresit, precum learn si implementation, dar in mare parte, cuvintele specifice domeniului sunt identificate corect.
+
+Aceasta a fost prezentarea mea. Daca aveti intrebari, va rog!

@@ -6,7 +6,7 @@ from unidecode import unidecode
 from common import *
 
 
-def preprocess_bert(publications_en):
+def preprocess_bert(publications_en, save=False):
     clean_re = re.compile(r'</?[a-z]+(:[^ ]+)?>|<([\w-]*|)>')
     http_re = re.compile(r'https?\S+')
     reject = '\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x0b\x0c\x0d\x0e\x0f'
@@ -31,5 +31,6 @@ def preprocess_bert(publications_en):
     publications_en['abstract_text_clean'] = publications_en['abstract_text'].progress_apply(preprocess)
     publications_en = publications_en[publications_en['abstract_text_clean'] != '']
     publications_en = publications_en.drop_duplicates(subset='abstract_text_clean', keep='first')
-    save_dataframe(publications_en, "publications_bert")
+    if save:
+        save_dataframe(publications_en, "publications_bert")
     return publications_en
