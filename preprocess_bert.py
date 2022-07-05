@@ -7,7 +7,7 @@ from common import *
 
 
 def preprocess_bert(publications_en):
-    clean_re = re.compile(r'</?[a-z]+(:.+)?>|<([\w-]*|)>')
+    clean_re = re.compile(r'</?[a-z]+(:[^ ]+)?>|<([\w-]*|)>')
     http_re = re.compile(r'https?\S+')
     reject = '\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x0b\x0c\x0d\x0e\x0f'
 

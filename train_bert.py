@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 import common
 import user_profile
-import wordcloud
+import preprocess_bert
 from sentence_transformers import SentenceTransformer
 from sklearn.decomposition import PCA
 from sklearn.feature_extraction.text import CountVectorizer
@@ -12,6 +12,7 @@ from gensim.models.coherencemodel import CoherenceModel
 import gensim.corpora as corpora
 from sklearn.cluster import KMeans
 from tqdm import tqdm
+from typing import Union
 
 
 sentence_models = {}
@@ -236,6 +237,16 @@ def load_bert_model():
     if conf.clustering_algorithm == "kmeans":
         kmeans = common.load_pickle("model.bert.kmeans")
     return BERTModel(sentence_model, scaler, umap_reducer, pca_reducer, kmeans, conf)
+
+
+def eval_bert_unprocessed(model: BERTModel, publications_raw: Union[str, list[str], pd.DataFrame],
+                          recalculate_embeddings=False, progress=True):
+    if type(publications_raw) == str:
+        publications_raw = [publications_raw]
+    if type(publications_raw) == list:
+        publications_raw = pd.DataFrame(publications_raw, columns=['abstract_text'])
+    publications = preprocess_bert.preprocess_bert(publications_raw)
+    return eval_bert(model, publications, recalculate_embeddings, progress)
 
 
 def eval_bert(model: BERTModel, publications: pd.DataFrame, recalculate_embeddings=False, progress=True):
