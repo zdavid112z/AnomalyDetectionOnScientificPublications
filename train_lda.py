@@ -122,12 +122,13 @@ def eval_lda(model: LDAModel, publications: pd.DataFrame, progress=False):
     return publications
 
 
-def visualize_topics(model: LDAModel, figsize=(8, 8), coherence="c_npmi"):
+def visualize_topics(model: LDAModel, figsize=(8, 8), coherence="c_npmi", colormap=None):
     top_topics = model.model.top_topics(model.corpus, texts=model.texts, coherence=coherence)  # , num_words=20)
     # Average topic coherence is the sum of topic coherences of all topics, divided by the number of topics.
     avg_topic_coherence = sum([t[1] for t in top_topics]) / model.cfg.num_topics
     print('Average topic coherence: %.4f.' % avg_topic_coherence)
-    common.display_wordcloud([{token[1]: token[0] for token in topic[0]} for topic in top_topics], figsize=figsize)
+    common.display_wordcloud([{token[1]: token[0] for token in topic[0]} for topic in top_topics],
+                             figsize=figsize, colormap=colormap)
 
 
 def train_and_evaluate_lda(publications_train: pd.DataFrame, publications_cv: pd.DataFrame, authors_train: pd.DataFrame,

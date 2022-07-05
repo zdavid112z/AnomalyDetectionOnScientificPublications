@@ -113,7 +113,7 @@ def train_kmeans(publications_train_features: pd.Series, n_clusters, random_stat
 
 
 def get_coherence(model: BERTModel, publications_bert_train_abstracts=None, word_embeddings=None, words=None,
-                  coherence="c_npmi", plot=True, figsize=(8, 8), top_words=20):
+                  coherence="c_npmi", plot=True, figsize=(8, 8), top_words=20, colormap=None):
     if model.cfg.clustering_algorithm != "kmeans":
         raise Exception("must have a trained clustering algorithm")
 
@@ -148,7 +148,7 @@ def get_coherence(model: BERTModel, publications_bert_train_abstracts=None, word
         top_words_per_topic.append(current_topic_top_words)
 
     if plot:
-        common.display_wordcloud(top_words_per_topic, figsize)
+        common.display_wordcloud(top_words_per_topic, figsize, colormap=colormap)
 
     dictionary_gensim = corpora.Dictionary(texts)
     cm = CoherenceModel(topics=topics, texts=texts,
@@ -178,7 +178,7 @@ def train_bert(publications_train: pd.DataFrame, conf: BERTConfig, recalculate_e
     pca_reducer = None
     umap_reducer = None
     if conf.reducer == "pca":
-        pca_reducer = PCA(n_components=conf.n_components)
+        pca_reducer = PCA(n_components=conf.n_components, random_state=conf.random_state)
 
         features = pca_reducer.fit_transform(embeddings)
     elif conf.reducer == "umap":
@@ -186,7 +186,8 @@ def train_bert(publications_train: pd.DataFrame, conf: BERTConfig, recalculate_e
             conf.umap_metric = conf.metric
         umap_reducer = umap.UMAP(n_components=conf.n_components, metric=conf.umap_metric,
                                  n_neighbors=conf.umap_n_neighbors,
-                                 min_dist=conf.umap_min_dist, verbose=conf.verbose)
+                                 min_dist=conf.umap_min_dist, verbose=conf.verbose,
+                                 random_state=conf.random_state)
 
         features = umap_reducer.fit_transform(embeddings)
     elif conf.reducer == 'none':
@@ -216,7 +217,7 @@ def save_bert_model(model: BERTModel):
     elif model.cfg.reducer == "umap":
         common.save_pickle(model.umap_reducer, "model.bert.umap_reducer")
     if model.cfg.clustering_algorithm == "kmeans":
-        common.save_pickle(model.umap_reducer, "model.bert.kmeans")
+        common.save_pickle(model.kmeans, "model.bert.kmeans")
 
 
 def load_bert_model():
@@ -279,7 +280,7 @@ def eval_features_for_words(model: BERTModel, publications, ngram_range):
 
 def get_top_words(model: BERTModel, feature: np.ndarray, publications: pd.DataFrame = None,
                   word_embeddings=None, words=None, top_words=20,
-                  ngram_range=(1, 3), figsize=(8, 8), plot=True):
+                  ngram_range=(1, 3), figsize=(8, 8), plot=True, colormap=None):
     if model.reducer is not None:
         embedding_scaled = model.reducer.inverse_transform(feature.reshape(1, -1))
     else:
@@ -305,7 +306,7 @@ def get_top_words(model: BERTModel, feature: np.ndarray, publications: pd.DataFr
     for word in best_words.index:
         best_words_weights[word] = best_words.loc[word]['similarity']
     if plot:
-        common.display_wordcloud(best_words_weights, figsize=figsize)
+        common.display_wordcloud(best_words_weights, figsize=figsize, colormap=colormap)
     return best_words
 
 

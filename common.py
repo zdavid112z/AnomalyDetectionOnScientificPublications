@@ -58,11 +58,11 @@ def publications_for_user(publications: pd.DataFrame, authors: pd.DataFrame, use
     return publications.loc[publication_ids]
 
 
-def display_wordcloud(words_weights, figsize=(16, 16)):
+def display_wordcloud(words_weights, figsize=(16, 16), colormap=None):
     if type(words_weights) is dict:
         words_weights = [words_weights]
     if len(words_weights) == 1:
-        wc = wordcloud.WordCloud(width=800, height=800)
+        wc = wordcloud.WordCloud(width=800, height=800, colormap=colormap)
         wc.generate_from_frequencies(words_weights[0])
         plt.figure(figsize=figsize)
         plt.imshow(wc.to_image(), interpolation='bilinear')
@@ -73,7 +73,7 @@ def display_wordcloud(words_weights, figsize=(16, 16)):
         fig, axes = plt.subplots(rows, 4, figsize=figsize)
         i = 0
         for words_dict in words_weights:
-            wc = wordcloud.WordCloud(width=800, height=800)
+            wc = wordcloud.WordCloud(width=800, height=800, colormap=colormap)
             wc.generate_from_frequencies(words_dict)
             ax = axes[i // 4][i % 4]
             ax.imshow(wc.to_image(), interpolation='bilinear')
