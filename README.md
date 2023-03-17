@@ -6,6 +6,7 @@ The general approach is that we pass their publications' abstracts through a tra
 
 The purpose of this tool is to quickly reject publications clearly outside one's area of expertise, thus the main objective is minimizing the number of false negatives. Overall, the solution obtains 91% accuracy.
 
+
 [Presentation](Ion%20David-Gabriel%20-%20Anomaly%20Detection%20on%20Scientific%20Publications.pdf)
 
 [Documentation](Diploma%20Project.pdf)
